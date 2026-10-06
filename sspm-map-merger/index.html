@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SSPM Map Merger</title>
+  <meta name="description" content="Merge up to 50 SSPM (Sound Space Plus) maps into one playable mega map. Runs entirely in your browser.">
+  <meta name="color-scheme" content="dark">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%237c5cff%27/%3E%3Cpath d=%27M7 22V10l9 8 9-8v12%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%273%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="dropveil" id="dropveil" aria-hidden="true"><div>Drop .sspm files to add them</div></div>
+
+  <header class="top">
+    <div class="wrap">
+      <h1 class="logo"><span class="logo-a">SSPM</span> <span class="logo-b">MAP MERGER</span></h1>
+      <p class="tag">Stitch up to <strong>50</strong> maps into one mega map. First map plays, then the next, and the next — all in a single <code>.sspm</code>.</p>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div id="support" class="notice err" role="alert" hidden></div>
+
+    <section class="card" aria-labelledby="h-add">
+      <h2 id="h-add">1 · Add maps</h2>
+      <button type="button" class="drop" id="drop" data-lock>
+        <span class="drop-big">Drop .sspm files here</span>
+        <span class="drop-small">or click to choose files — <span id="slots">0 / 50</span> added · SSPM v2 only</span>
+      </button>
+      <input type="file" id="file" accept=".sspm" multiple hidden>
+      <ul class="issues" id="issues" aria-live="polite"></ul>
+    </section>
+
+    <section class="card" aria-labelledby="h-order" id="orderCard" hidden>
+      <div class="row-between">
+        <h2 id="h-order">2 · Order</h2>
+        <div class="tools">
+          <button type="button" class="btn small" data-lock id="sortDiff">Easy → Hard</button>
+          <button type="button" class="btn small" data-lock id="sortName">A → Z</button>
+          <button type="button" class="btn small" data-lock id="shuffle">Shuffle</button>
+          <button type="button" class="btn small" data-lock id="reverse">Reverse</button>
+          <button type="button" class="btn small danger" data-lock id="clear">Clear all</button>
+        </div>
+      </div>
+      <p class="hint">Drag rows (or use the arrows) to reorder. Maps play top to bottom.</p>
+      <ol class="list" id="list"></ol>
+    </section>
+
+    <section class="card" aria-labelledby="h-opts" id="optsCard" hidden>
+      <h2 id="h-opts">3 · Pack settings</h2>
+      <div class="grid">
+        <label class="field span2">
+          <span>Pack name</span>
+          <input type="text" id="name" value="SSPM Map Pack" maxlength="120" data-lock>
+        </label>
+        <label class="field">
+          <span>Gap between maps</span>
+          <select id="gap" data-lock>
+            <option value="0">None (seamless)</option>
+            <option value="1000">1 second</option>
+            <option value="2000" selected>2 seconds</option>
+            <option value="3000">3 seconds</option>
+            <option value="5000">5 seconds</option>
+            <option value="8000">8 seconds</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Fade out end of each song</span>
+          <select id="fade" data-lock>
+            <option value="0">Off</option>
+            <option value="500" selected>0.5 second</option>
+            <option value="1000">1 second</option>
+            <option value="2000">2 seconds</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Audio quality (MP3)</span>
+          <select id="bitrate" data-lock>
+            <option value="128">128 kbps – smallest</option>
+            <option value="192" selected>192 kbps – balanced</option>
+            <option value="256">256 kbps</option>
+            <option value="320">320 kbps – largest</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Cover image</span>
+          <select id="cover" data-lock></select>
+        </label>
+        <details class="span2 adv">
+          <summary>Advanced</summary>
+          <label class="field">
+            <span>Note timing nudge (ms)</span>
+            <input type="number" id="nudge" value="0" min="-500" max="500" step="1" data-lock>
+          </label>
+          <p class="hint">The merger already shifts notes by 25&nbsp;ms to cancel the delay MP3 encoding adds. If the merged map feels early or late in-game, nudge it here (positive = notes later).</p>
+        </details>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="h-build" id="buildCard" hidden>
+      <h2 id="h-build">4 · Merge</h2>
+      <div class="stats" id="stats"></div>
+      <div class="row">
+        <button type="button" class="btn primary" id="build">Merge maps</button>
+        <button type="button" class="btn" id="cancel" hidden>Cancel</button>
+      </div>
+      <div class="progress" id="progressBox" hidden>
+        <progress id="bar" max="100" value="0"></progress>
+        <p id="status" aria-live="polite"></p>
+        <p class="hint">Keep this tab open — the audio is decoded and re-encoded locally, which takes a minute or two for big packs.</p>
+      </div>
+      <div id="error" class="notice err" role="alert" hidden></div>
+
+      <div id="result" class="result" hidden>
+        <h3>Your mega map is ready</h3>
+        <p id="resultInfo"></p>
+        <div class="row">
+          <a class="btn primary" id="download" download>Download .sspm</a>
+          <a class="btn" id="dlTracks" download>Download tracklist (.txt)</a>
+        </div>
+        <ol class="tracks" id="tracks"></ol>
+      </div>
+    </section>
+
+    <section class="card faq">
+      <h2>How it works</h2>
+      <ul>
+        <li><strong>Private.</strong> Everything runs in your browser. Your maps are never uploaded.</li>
+        <li><strong>Audio</strong> from each map is decoded, joined end to end (with your chosen gap) and re-encoded as one MP3 so the whole pack is a single song.</li>
+        <li><strong>Notes</strong> from each map are moved to the point where its song starts in the merged audio, then everything is sorted by time.</li>
+        <li><strong>Difficulty</strong> of the pack is the hardest map in it. Mappers from all maps are credited. Only note markers are carried over.</li>
+        <li><strong>Cover</strong> comes from the map you choose (default: the first).</li>
+        <li><strong>Limits:</strong> SSPM v2 files only, 50 maps max. Browsers that can't decode OGG (some Safari versions) can't merge OGG-audio maps — use Chrome, Edge or Firefox.</li>
+      </ul>
+    </section>
+  </main>
+
+  <footer class="wrap foot">
+    <p>MP3 encoding by <a href="https://github.com/zhuker/lamejs">lamejs</a> (LAME, LGPL). Not affiliated with Sound Space Plus or Rhythia.</p>
+  </footer>
+
+  <script src="vendor/lame.min.js"></script>
+  <script src="sspm.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
